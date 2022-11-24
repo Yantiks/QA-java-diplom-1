@@ -1,92 +1,155 @@
 package praktikum;
 
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoJUnitRunner;
-
-import java.util.Random;
+import org.mockito.junit.MockitoRule;
 
 import static org.junit.Assert.assertEquals;
-import static praktikum.BurgerGenerator.getRandomBurger;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(Enclosed.class)
 public class BurgerTest {
-    private Database database = new Database();
+    @RunWith(Parameterized.class)
+    public static class BurgerParameterizedTest {
+        @Rule
+        public MockitoRule rule = MockitoJUnit.rule();
+        @Mock
+        private Bun bunMock;
+        @Mock
+        private Ingredient ingredientMock;
 
-    @Mock
-    private Bun bunMock;
+        private String bunName;
+        private float bunPrice;
+        private IngredientType ingredientType;
+        private String ingredientName;
+        private float ingredientPrice;
+        private Burger burger;
 
-    @Mock
-    private Ingredient ingredientMock;
-
-    @Test
-    public void addIngredientTest() {
-        Burger burger = new Burger();
-        Random random = new Random();
-        int index = random.nextInt(database.availableIngredients().size());
-        Ingredient ingredient = database.availableIngredients().get(index);
-        burger.addIngredient(ingredient);
-        assertEquals(true, burger.ingredients.contains(ingredient));
-    }
-
-    @Test
-    public void removeIngredientTest() {
-        Burger burger = getRandomBurger();
-        Random random = new Random();
-        int index = random.nextInt(burger.ingredients.size());
-        Ingredient ingredient = burger.ingredients.get(index);
-        burger.removeIngredient(index);
-        assertEquals(false, burger.ingredients.contains(ingredient));
-    }
-
-    @Test
-    public void moveIngredientTest() {
-        Burger burger = getRandomBurger();
-        Random random = new Random();
-        int index = random.nextInt(burger.ingredients.size());
-        int newIndex = random.nextInt(burger.ingredients.size());
-        Ingredient ingredient = burger.ingredients.get(index);
-        burger.moveIngredient(index, newIndex);
-        assertEquals(ingredient, burger.ingredients.get(newIndex));
-    }
-
-    @Test
-    public void getPriceMockTest() {
-        Burger burger = new Burger();
-        burger.addIngredient(ingredientMock);
-        burger.setBuns(bunMock);
-        burger.getPrice();
-        Mockito.verify(bunMock, Mockito.times(1)).getPrice();
-        Mockito.verify(ingredientMock, Mockito.times(1)).getPrice();
-
-    }
-
-    @Test
-    public void getPriceTest() {
-        Burger burger = getRandomBurger();
-        //рассчитываем ожидаемую стоимость бургера на основании данных из БД
-        float expectedBunsPrice = burger.bun.getPrice() * 2;
-        float expectedIngredientsPrice = 0;
-        for (Ingredient ingredient : burger.ingredients
-        ) {
-            expectedIngredientsPrice += ingredient.getPrice();
+        public BurgerParameterizedTest(String bunName, float bunPrice, IngredientType ingredientType, String ingredientName, float ingredientPrice) {
+            this.bunName = bunName;
+            this.bunPrice = bunPrice;
+            this.ingredientType = ingredientType;
+            this.ingredientName = ingredientName;
+            this.ingredientPrice = ingredientPrice;
         }
 
-        assertEquals(expectedBunsPrice + expectedIngredientsPrice, burger.getPrice(), 0);
+        @Parameterized.Parameters(name = "bunName = {0}, bunPrice = {1}, ingredientType = {2}, ingredientName = {3}, ingredientPrice = {4}")
+        public static Object[][] getParameters() {
+            return new Object[][]{
+                    {"black bun", 100, IngredientType.SAUCE, "hot sauce", 100},
+                    {"white bun", 200, IngredientType.SAUCE, "sour cream", 200},
+                    {"red bun", 300, IngredientType.SAUCE, "chili sauce", 300},
+                    {"red bun", 300, IngredientType.FILLING, "cutlet", 100},
+                    {"black bun", 100, IngredientType.FILLING, "dinosaur", 200},
+                    {"white bun", 200, IngredientType.FILLING, "sausage", 300}
+            };
+        }
+
+        @Before
+        public void setUp() {
+            burger = new Burger();
+        }
+
+        @Test
+        public void getPriceStubTest() {
+            Mockito.when(ingredientMock.getPrice()).thenReturn(ingredientPrice);
+            Mockito.when(bunMock.getPrice()).thenReturn(bunPrice);
+            burger.addIngredient(ingredientMock);
+            burger.setBuns(bunMock);
+
+            assertEquals(bunPrice * 2 + ingredientPrice, burger.getPrice(), 0);
+        }
+
+        @Test
+        public void getReceiptStubTest() {
+            Mockito.when(bunMock.getName()).thenReturn(bunName);
+            Mockito.when(ingredientMock.getType()).thenReturn(ingredientType);
+            Mockito.when(ingredientMock.getName()).thenReturn(ingredientName);
+            Mockito.when(bunMock.getPrice()).thenReturn(bunPrice);
+            Mockito.when(ingredientMock.getPrice()).thenReturn(ingredientPrice);
+
+            burger.addIngredient(ingredientMock);
+            burger.setBuns(bunMock);
+
+            float expectedBurgerPrice = bunPrice * 2 + ingredientPrice;
+            StringBuilder expectedReceipt = new StringBuilder(String.format("(==== %s ====)%n", bunName));
+            expectedReceipt.append(String.format("= %s %s =%n", ingredientType.toString().toLowerCase(), ingredientName));
+            expectedReceipt.append(String.format("(==== %s ====)%n", bunName));
+            expectedReceipt.append(String.format("%nPrice: %f%n", expectedBurgerPrice));
+            assertEquals(expectedReceipt.toString(), burger.getReceipt());
+        }
     }
 
-    @Test
-    public void getReceiptTest() {
-        Burger burger = getRandomBurger();
-        StringBuilder expectedReceipt = new StringBuilder(String.format("(==== %s ====)%n", burger.bun.getName()));
-        for (Ingredient ingredient : burger.ingredients) {
-            expectedReceipt.append(String.format("= %s %s =%n", ingredient.getType().toString().toLowerCase(),
-                    ingredient.getName()));
+    @RunWith(MockitoJUnitRunner.class)
+    public static class BurgerNotParameterizedTest {
+        @Mock
+        private Bun bunMock;
+
+        @Mock
+        private Ingredient ingredientMock;
+
+        @Mock
+        private Ingredient ingredientMock2;
+
+        private Burger burger;
+
+        @Before
+        public void setUp() {
+            burger = new Burger();
         }
-        expectedReceipt.append(String.format("(==== %s ====)%n", burger.bun.getName()));
-        expectedReceipt.append(String.format("%nPrice: %f%n", burger.getPrice()));
-        assertEquals(expectedReceipt.toString(), burger.getReceipt());
+
+        @Test
+        public void addIngredientTest() {
+            burger.addIngredient(ingredientMock);
+            assertEquals(true, burger.ingredients.contains(ingredientMock));
+        }
+
+        @Test
+        public void removeIngredientTest() {
+            burger.addIngredient(ingredientMock);
+            burger.removeIngredient(burger.ingredients.indexOf(ingredientMock));
+            assertEquals(false, burger.ingredients.contains(ingredientMock));
+        }
+
+        @Test
+        public void moveIngredientTest() {
+            burger.addIngredient(ingredientMock);
+            burger.addIngredient(ingredientMock2);
+            int index = burger.ingredients.indexOf(ingredientMock);
+            int newIndex = burger.ingredients.indexOf(ingredientMock2);
+            burger.moveIngredient(index, newIndex);
+            assertEquals(ingredientMock, burger.ingredients.get(newIndex));
+        }
+
+        @Test
+        public void getPriceMockTest() {
+            burger.addIngredient(ingredientMock);
+            burger.setBuns(bunMock);
+            burger.getPrice();
+            Mockito.verify(bunMock, Mockito.times(1)).getPrice();
+            Mockito.verify(ingredientMock, Mockito.times(1)).getPrice();
+        }
+
+        @Test
+        public void getReceiptMockTest() {
+            burger.addIngredient(ingredientMock);
+            burger.setBuns(bunMock);
+            Mockito.when(ingredientMock.getType()).thenReturn(IngredientType.SAUCE);
+
+            burger.getReceipt();
+
+            Mockito.verify(bunMock, Mockito.times(2)).getName();
+            Mockito.verify(ingredientMock, Mockito.times(1)).getType();
+            Mockito.verify(ingredientMock, Mockito.times(1)).getName();
+            Mockito.verify(bunMock, Mockito.times(1)).getPrice();
+            Mockito.verify(ingredientMock, Mockito.times(1)).getPrice();
+        }
     }
 }
